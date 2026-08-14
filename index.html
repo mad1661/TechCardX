@@ -105,15 +105,17 @@
         <h3 class="dlg-sub">Sources &amp; manual update</h3>
         <p>
           Class tables, weight breaks and the model dictionary come from the sources below.
-          When NHRA publishes revisions the live check can’t read (PDF guides, rulebook
-          tables), import an updated dataset here. The header shows the date of the data
+          Drop NHRA’s own update files straight in: the “Updates to Class Guide &amp;
+          Specifications” document (.doc) applies its factored-HP changes, and engine
+          blueprint spec sheets (e.g. CHRY64.rtf) add or refresh that make/year’s specs.
+          You can select several files at once. The header shows the date of the data
           currently in use.
         </p>
         <ul class="sources" id="sourceList"></ul>
         <div class="update-actions">
           <label class="btn">
-            Import updated dataset (.json)
-            <input type="file" id="refImportFile" accept=".json" class="hidden" />
+            Import NHRA update files (.doc / .rtf / .json)
+            <input type="file" id="refImportFile" accept=".json,.doc,.docx,.rtf,.txt" multiple class="hidden" />
           </label>
           <button class="btn secondary" id="btnExportRef">Export current dataset</button>
           <button class="btn secondary" id="btnResetRef">Reset to bundled</button>
