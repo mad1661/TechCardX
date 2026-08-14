@@ -178,6 +178,15 @@ dialog#updatePanel .dlg-head {
 }
 dialog#updatePanel .dlg-head h2 { margin: 0; font-size: 17px; flex: 1; }
 dialog#updatePanel .dlg-body { padding: 16px 20px 22px; }
+dialog#updatePanel .dlg-sub { font-size: 14px; margin: 14px 0 4px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+dialog#updatePanel .dlg-sub:first-child { margin-top: 0; }
+ul.check-status { list-style: none; padding: 0; margin: 10px 0 0; font-size: 13.5px; }
+ul.check-status li { padding: 3px 0; display: flex; gap: 8px; align-items: baseline; }
+ul.check-status .st { font-weight: 700; min-width: 84px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.4px; }
+ul.check-status .st.unchanged { color: var(--clean); }
+ul.check-status .st.changed, ul.check-status .st.new { color: var(--warning); }
+ul.check-status .st.error { color: var(--problem); }
+ul.check-status .st.checking { color: var(--muted); }
 dialog#updatePanel ul.sources { padding-left: 18px; margin: 8px 0 16px; }
 dialog#updatePanel ul.sources li { margin: 4px 0; }
 .update-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
@@ -187,3 +196,48 @@ dialog#updatePanel ul.sources li { margin: 4px 0; }
 #fileError { color: var(--problem); margin-top: 10px; font-size: 14px; }
 .hidden { display: none !important; }
 footer.app { text-align: center; color: var(--muted); font-size: 12.5px; padding: 20px; }
+
+/* ------- printable problem list ------- */
+#printSheet { display: none; }
+
+@media print {
+  body > *:not(#printSheet) { display: none !important; }
+  body { background: #fff; font-size: 12px; }
+  #printSheet { display: block; padding: 0; color: #000; }
+  #printSheet h1 { font-size: 18px; margin: 0 0 2px; }
+  #printSheet .meta { font-size: 11px; color: #333; margin-bottom: 12px; }
+  #printSheet .pcar {
+    border: 1px solid #999;
+    border-left: 5px solid #666;
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    page-break-inside: avoid;
+  }
+  #printSheet .pcar.problem { border-left-color: #b3151c; }
+  #printSheet .pcar.warning { border-left-color: #c78500; }
+  #printSheet .pcar.info { border-left-color: #1451c4; }
+  #printSheet .pcar .head { font-weight: 700; font-size: 13px; }
+  #printSheet .pcar .sub { font-size: 11.5px; color: #222; margin: 1px 0 4px; }
+  #printSheet .phead { font-size: 12px; margin: 0 0 12px; }
+  #printSheet .line {
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    height: 13px;
+    vertical-align: -2px;
+  }
+  #printSheet .line.xs { width: 70px; }
+  #printSheet .line.sm { width: 110px; }
+  #printSheet .line.md { width: 180px; }
+  #printSheet .line.xl { width: 92%; }
+  #printSheet .pflag { margin: 4px 0 6px 2px; }
+  #printSheet .pflag .answer { margin: 3px 0 0 18px; }
+  #printSheet .verify { margin-top: 7px; padding-top: 5px; border-top: 1px dotted #999; font-size: 11px; }
+  #printSheet .pflag .box {
+    display: inline-block; width: 11px; height: 11px;
+    border: 1.4px solid #000; margin-right: 7px; vertical-align: -1px;
+  }
+  #printSheet .pflag .sev { font-weight: 700; text-transform: uppercase; font-size: 10px; margin-right: 5px; }
+  #printSheet .sign { margin-top: 4px; font-size: 10.5px; color: #444; }
+  #printSheet .footer { margin-top: 14px; font-size: 10px; color: #555; }
+}

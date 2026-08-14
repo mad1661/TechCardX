@@ -18,20 +18,29 @@ swaps, expired licenses/memberships and more.
 3. Click a row for details; filter by category or severity; export the
    flagged list to CSV for the tech shack.
 
-## Reference data & the Update button
+## Reference data & the Update panel
 
 Class tables and weight breaks change during the season (AHFS horsepower
 adjustments, Classification Guide corrections, rulebook amendments). The
-header shows the **version and last-updated date** of the data in use.
-The **Update** panel links the authoritative sources on nhraracer.com,
-lets you **import** an updated dataset (JSON), **export** the current one
-to edit, and reset to the bundled copy. Imported data is kept in the
-browser (localStorage) and survives reloads.
+header shows the **version and last-updated date** of the data in use, and
+when the website was last checked.
 
-> nhraracer.com publishes the guides as PDFs behind a plain website with no
-> API, and browsers block cross-site scraping, so fully automatic scraping
-> needs a small server component (e.g. Firebase Cloud Functions). The data
-> layer is already separated so that can be added without touching the app.
+The **Update** panel does three things:
+
+1. **Check nhraracer.com now** — fetches the watched pages (Classification
+   Guides, AHFS, Indexes, Accepted Products) through public CORS relays,
+   reports which pages changed since the last check, and automatically
+   parses & applies any factored-HP change lines it can read (the
+   "Chev 1969 396 375/405 change to 396 375/409" format).
+2. Links every authoritative source page for manual review.
+3. **Import/export** of the dataset as JSON (persisted in localStorage),
+   plus reset to the bundled copy — for updates the live check can't read
+   (PDF guides, rulebook weight-break tables).
+
+Bundled official data (through 2026-08-10): the Class Guide &
+Specifications changelog (factored-HP corrections are checked against
+every uploaded card) and Chrysler 1964/65/68 engine blueprint specs
+(displacement + advertised-HP combo validation for Mopar cards).
 
 ## Development
 

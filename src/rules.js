@@ -400,6 +400,96 @@ function ruleGroupSpecific(rec, ref, flags) {
   }
 }
 
+// Factored-HP corrections from the Class Guide changelog: if a card's
+// combo matches an adjustment and still shows the OLD factor, the card is
+// stale — the min weight computed from it will be wrong too.
+const ADJ_MAKE_FAMILY = {
+  CHEV: "GM", GM: "GM", PONT: "GM", OLDS: "GM", BUICK: "GM", BUIC: "GM",
+  MOPAR: "Mopar", DODGE: "Mopar", DODG: "Mopar", PLYM: "Mopar", CHRY: "Mopar",
+  FORD: "Ford", MERC: "Ford", AMC: "AMC",
+};
+
+// Keep only the newest adjustment per combo (the changelog chains
+// corrections, e.g. 291→293 then 293→294 — only the latest is current).
+function latestAdjustments(list) {
+  const byCombo = new Map();
+  for (const adj of list || []) {
+    const key = [adj.make.toUpperCase(), adj.yearFrom, adj.yearTo, adj.cui, adj.advHp].join("|");
+    const prev = byCombo.get(key);
+    if (!prev || (adj.date || "") >= (prev.date || "")) byCombo.set(key, adj);
+  }
+  return [...byCombo.values()];
+}
+
+function ruleHpAdjustments(rec, ref, flags) {
+  if (!CLASS_CATS.has(rec.category)) return;
+  if (rec.engineYear == null || rec.cui == null || rec.hp == null) return;
+  const fam = engineFamily(rec.engineMake, ref);
+  if (!ref._latestAdj) ref._latestAdj = latestAdjustments(ref.hpAdjustments);
+  for (const adj of ref._latestAdj) {
+    const adjFam = ADJ_MAKE_FAMILY[adj.make.toUpperCase()] || adj.make;
+    if (fam && adjFam !== fam) continue;
+    if (rec.engineYear < adj.yearFrom || rec.engineYear > adj.yearTo) continue;
+    if (rec.cui !== adj.cui || rec.hp !== adj.advHp) continue;
+    if (rec.factoredHp === adj.factoredFrom) {
+      flags.push({
+        code: "factored-hp-outdated",
+        severity: "problem",
+        message:
+          `Factored HP for ${adj.make} ${rec.engineYear} ${adj.cui}/${adj.advHp} was changed ` +
+          `${adj.factoredFrom} → ${adj.factoredTo} on ${adj.date} — card still shows the old ${adj.factoredFrom}.`,
+      });
+    } else if (rec.factoredHp != null && rec.factoredHp !== adj.factoredTo) {
+      flags.push({
+        code: "factored-hp-differs-from-bulletin",
+        severity: "warning",
+        message:
+          `NHRA set factored HP for ${adj.make} ${rec.engineYear} ${adj.cui}/${adj.advHp} to ` +
+          `${adj.factoredTo} on ${adj.date}, but the card shows ${rec.factoredHp}. Verify against the current guide.`,
+      });
+    }
+  }
+}
+
+// Engine blueprint spec sheets: for covered make/years, the displacement
+// and (displacement, advertised HP) combo must exist in the factory specs.
+function ruleEngineSpecs(rec, ref, flags) {
+  if (rec.category !== "STK" && rec.category !== "SS") return;
+  if (rec.engineYear == null || rec.cui == null) return;
+  const fam = engineFamily(rec.engineMake, ref);
+  const specs = fam && ref.engineSpecs ? ref.engineSpecs[fam] : null;
+  const yearSpec = specs ? specs[String(rec.engineYear)] : null;
+  if (!yearSpec) return;
+  const dispOk = yearSpec.displacements.some((d) => d.cui === rec.cui);
+  if (!dispOk) {
+    flags.push({
+      code: "engine-disp-not-in-specs",
+      severity: "warning",
+      message:
+        `${rec.engineYear} ${rec.engineMake} blueprint specs list no ${rec.cui} CUI engine ` +
+        `(valid: ${[...new Set(yearSpec.displacements.map((d) => d.cui))].join(", ")}).`,
+    });
+    return;
+  }
+  if (rec.hp != null && yearSpec.combos.length) {
+    const comboOk = yearSpec.combos.some(
+      (c) => c.cui === rec.cui && c.advHp === rec.hp
+    );
+    if (!comboOk) {
+      const hps = yearSpec.combos
+        .filter((c) => c.cui === rec.cui)
+        .map((c) => c.advHp);
+      flags.push({
+        code: "combo-not-in-specs",
+        severity: "warning",
+        message:
+          `No ${rec.engineYear} ${rec.engineMake} ${rec.cui}/${rec.hp} hp combo in the blueprint specs` +
+          (hps.length ? ` (listed for ${rec.cui} CUI: ${[...new Set(hps)].join(", ")} hp).` : "."),
+      });
+    }
+  }
+}
+
 function ruleAdmin(rec, ref, flags) {
   const refDate = rec.eventEnd || rec.eventStart || new Date();
   if (rec.licenseExp && rec.licenseExp < refDate)
@@ -434,6 +524,8 @@ const RECORD_RULES = [
   ruleRequiredPowertrain,
   ruleBody,
   ruleGroupSpecific,
+  ruleHpAdjustments,
+  ruleEngineSpecs,
   ruleAdmin,
 ];
 

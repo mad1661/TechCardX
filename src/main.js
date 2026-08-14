@@ -8,6 +8,7 @@ import {
   exportRefData,
   isCustomRefData,
 } from "./refdata.js";
+import { checkWebsite, getLastChecked } from "./updater.js";
 import "./style.css";
 
 const $ = (sel) => document.querySelector(sel);
@@ -24,15 +25,30 @@ function renderRefBadge() {
   $("#refSource").textContent = isCustomRefData()
     ? "(" + (ref.meta.updatedBy || "imported") + ")"
     : "";
+  const checked = getLastChecked();
+  $("#refChecked").textContent = checked
+    ? " · site checked " + new Date(checked).toLocaleDateString()
+    : "";
 }
 
 // ---------------------------------------------------------- update panel
+
+function renderLastChecked() {
+  const checked = getLastChecked();
+  $("#lastCheckedLabel").textContent = checked
+    ? "Last checked " + new Date(checked).toLocaleString()
+    : "Never checked from this browser yet.";
+}
 
 function openUpdatePanel() {
   const ref = getRefData();
   const list = $("#sourceList");
   list.innerHTML = "";
-  for (const s of ref.meta.sources || []) {
+  const linkItems = [...(ref.meta.watchPages || []), ...(ref.meta.sources || [])];
+  const seen = new Set();
+  for (const s of linkItems) {
+    if (seen.has(s.url)) continue;
+    seen.add(s.url);
     const li = document.createElement("li");
     const a = document.createElement("a");
     a.href = s.url;
@@ -42,6 +58,8 @@ function openUpdatePanel() {
     li.appendChild(a);
     list.appendChild(li);
   }
+  renderLastChecked();
+  $("#checkStatus").innerHTML = "";
   $("#updNotice").className = "notice hidden";
   $("#updatePanel").showModal();
 }
@@ -49,6 +67,52 @@ function openUpdatePanel() {
 function setupUpdatePanel() {
   $("#btnUpdate").addEventListener("click", openUpdatePanel);
   $("#btnCloseUpdate").addEventListener("click", () => $("#updatePanel").close());
+
+  $("#btnCheckSite").addEventListener("click", async () => {
+    const btn = $("#btnCheckSite");
+    const list = $("#checkStatus");
+    const notice = $("#updNotice");
+    btn.disabled = true;
+    list.innerHTML = "";
+    notice.className = "notice hidden";
+    const rows = new Map();
+    const onPage = (label, status, detail) => {
+      let li = rows.get(label);
+      if (!li) {
+        li = document.createElement("li");
+        rows.set(label, li);
+        list.appendChild(li);
+      }
+      li.innerHTML =
+        `<span class="st ${status}">${status}</span><span>${label}` +
+        (detail ? ` <span class="muted">— ${detail}</span>` : "") +
+        `</span>`;
+    };
+    try {
+      const result = await checkWebsite(onPage);
+      renderRefBadge();
+      renderLastChecked();
+      const parts = [];
+      if (result.newAdjustments.length)
+        parts.push(
+          `${result.newAdjustments.length} factored-HP change(s) pulled in and applied`
+        );
+      if (result.changedPages.length)
+        parts.push(
+          `${result.changedPages.length} page(s) changed since last check — open them below to review`
+        );
+      notice.className = "notice ok";
+      notice.textContent = parts.length
+        ? "Check finished: " + parts.join("; ") + "."
+        : "Check finished: no changes detected on the watched pages.";
+      if (result.newAdjustments.length && currentMeta) rerun();
+    } catch (e) {
+      notice.className = "notice err";
+      notice.textContent =
+        "Live check failed (the relay services may be blocked or down): " + e.message;
+    }
+    btn.disabled = false;
+  });
 
   $("#btnExportRef").addEventListener("click", () => {
     const blob = new Blob([exportRefData()], { type: "application/json" });
@@ -259,6 +323,47 @@ function exportCsv() {
   URL.revokeObjectURL(a.href);
 }
 
+// Build the print sheet from the current filters (flagged cards only,
+// sorted problems-first) and open the browser print dialog.
+function printProblemList() {
+  if (!currentResults) return;
+  const ref = getRefData();
+  const rows = filteredResults().filter((r) => r.maxSeverity !== "clean");
+  const cat = $("#catFilter").value;
+  const sheet = $("#printSheet");
+  const now = new Date();
+  sheet.innerHTML =
+    `<h1>Problem Child List — Tech Review</h1>` +
+    `<div class="meta">${esc(currentMeta.fileName)} · ${rows.length} flagged of ${currentResults.length} cards` +
+    (cat !== "all" ? ` · category ${esc(cat)}` : "") +
+    ` · printed ${now.toLocaleString()} · NHRA data v${esc(ref.meta.version)} (updated ${esc(ref.meta.lastUpdated)})</div>` +
+    `<div class="phead">Event: <span class="line md"></span>　Inspector: <span class="line md"></span>　Date: <span class="line sm"></span></div>` +
+    rows
+      .map((r) => {
+        const rec = r.record;
+        return (
+          `<div class="pcar ${r.maxSeverity}">` +
+          `<div class="head">#${esc(rec.carNumber) || "—"} · ${esc(rec.firstName)} ${esc(rec.lastName)} · ${esc(rec.category)} ${esc(rec.klass)}</div>` +
+          `<div class="sub">${esc(rec.engineMake)} ${rec.engineYear ?? "?"} ${rec.cui ? rec.cui + "ci" : ""} · ` +
+          `${esc(rec.bodyType)} ${rec.bodyYear ?? ""} · HP ${rec.hp ?? "—"} / factored ${rec.factoredHp ?? "—"}</div>` +
+          r.flags
+            .map(
+              (f) =>
+                `<div class="pflag"><span class="box"></span><span class="sev">${f.severity}</span>${esc(f.message)}` +
+                `<div class="answer">Answer: <span class="line xl"></span></div></div>`
+            )
+            .join("") +
+          `<div class="verify">Verified — Body style: <span class="line sm"></span>　Class: <span class="line sm"></span>` +
+          `　Factored HP: <span class="line xs"></span>　Min weight: <span class="line xs"></span>` +
+          `　Cleared by: <span class="line sm"></span></div>` +
+          `</div>`
+        );
+      })
+      .join("") +
+    `<div class="footer">TechCardX screening aid — final classification per the current NHRA Rulebook &amp; Classification Guide. Check each box as it is cleared and write the answer on the line.</div>`;
+  window.print();
+}
+
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -274,5 +379,6 @@ $("#sevFilter").addEventListener("change", renderTable);
 $("#catFilter").addEventListener("change", renderTable);
 $("#searchBox").addEventListener("input", renderTable);
 $("#btnExportCsv").addEventListener("click", exportCsv);
+$("#btnPrint").addEventListener("click", printProblemList);
 
 console.log("TechCardX ready — Firebase project:", app.options.projectId);

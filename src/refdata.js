@@ -6,11 +6,32 @@
 // overriding the bundled copy. meta.lastUpdated always reflects whichever
 // dataset is active.
 
+import { hpAdjustments, guideNotices, engineSpecs } from "./refdata-nhra-docs.js";
+
 export const BUNDLED = {
   meta: {
-    version: "2026.1",
+    version: "2026.2",
     lastUpdated: "2026-08-14",
     updatedBy: "bundled with app",
+    // Pages the website updater fetches and diffs for changes.
+    watchPages: [
+      {
+        label: "Stock Car Classification Guides",
+        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46635&z=132",
+      },
+      {
+        label: "AHFS / HP adjustments",
+        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46633&z=132",
+      },
+      {
+        label: "Indexes and Records",
+        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46999&z=132",
+      },
+      {
+        label: "NHRA Accepted Products",
+        url: "https://www.nhraracer.com/content/general.asp?articleid=53545&zoneid=132",
+      },
+    ],
     sources: [
       {
         label: "Stock Car Classification Guides (per-manufacturer PDFs)",
@@ -299,6 +320,14 @@ export const BUNDLED = {
     wagon: ["WAGON", "WGN", "STA", "ESTATE", "KAMMBACK"],
     convertible: ["CONV", "VERT", "CONVERTIBLE", "RAGTOP", "CABRIOLET", "CABRIO"],
   },
+
+  // ---- Parsed official documents --------------------------------------
+  // Factored-HP corrections from the "Updates to Class Guide &
+  // Specifications" changelog; other changelog lines; engine blueprint
+  // spec data (currently Chrysler 1964/65/68).
+  hpAdjustments,
+  guideNotices,
+  engineSpecs,
 };
 
 const LS_KEY = "techcardx.refdata";

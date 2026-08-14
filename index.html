@@ -17,6 +17,7 @@
           NHRA reference data <b id="refVersion"></b>
           · updated <b id="refUpdated"></b>
           <span id="refSource" class="muted"></span>
+          <span id="refChecked"></span>
         </span>
         <button id="btnUpdate">Update</button>
       </div>
@@ -59,6 +60,7 @@
           <div class="spacer"></div>
           <span class="muted"><span id="shownCount">0</span> shown</span>
           <button class="btn secondary" id="btnExportCsv">Export flagged CSV</button>
+          <button class="btn" id="btnPrint">Print problem list</button>
         </div>
 
         <div class="table-wrap">
@@ -85,11 +87,24 @@
         <button class="btn secondary" id="btnCloseUpdate">Close</button>
       </div>
       <div class="dlg-body">
+        <h3 class="dlg-sub">Check the website</h3>
+        <p>
+          Fetches the watched nhraracer.com pages, reports what changed since the last
+          check, and automatically pulls in any factored-HP changes it can read
+          (e.g. “Chev 1969 396 375/405 change to 396 375/409”).
+        </p>
+        <div class="update-actions">
+          <button class="btn" id="btnCheckSite">Check nhraracer.com now</button>
+          <span class="muted" id="lastCheckedLabel"></span>
+        </div>
+        <ul id="checkStatus" class="check-status"></ul>
+
+        <h3 class="dlg-sub">Sources &amp; manual update</h3>
         <p>
           Class tables, weight breaks and the model dictionary come from the sources below.
-          NHRA revises factors and guides during the season — check these pages, and when
-          something changes, import an updated dataset. The header shows the date of the
-          data currently in use.
+          When NHRA publishes revisions the live check can’t read (PDF guides, rulebook
+          tables), import an updated dataset here. The header shows the date of the data
+          currently in use.
         </p>
         <ul class="sources" id="sourceList"></ul>
         <div class="update-actions">
@@ -103,6 +118,8 @@
         <div id="updNotice" class="notice hidden"></div>
       </div>
     </dialog>
+
+    <div id="printSheet" aria-hidden="true"></div>
 
     <footer class="app">TechCardX · tech-card screening aid — final classification always per the current NHRA Rulebook &amp; Classification Guide</footer>
     <script type="module" src="/src/main.js"></script>
