@@ -101,7 +101,7 @@ export function parseClass(klass, category, ref) {
   const c = (klass || "").toUpperCase().replace(/\s+/g, "");
   if (!c) return null;
   let m;
-  if ((m = c.match(/^(AA|[A-Z])\/S(A?)$/))) {
+  if ((m = c.match(/^(AAA|AA|[A-Z])\/S(A?)$/))) {
     return { group: "STK", letter: m[1], auto: m[2] === "A" };
   }
   if ((m = c.match(/^FS\/(AA|[A-M])$/))) return { group: "FS", letter: m[1] };
