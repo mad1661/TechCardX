@@ -10,10 +10,14 @@
 
 import { getRefData, importRefData } from "./refdata.js";
 
+// corsproxy.io now returns 403 for anonymous free use, so it sits last as
+// a long-shot; jina.ai's public reader returns the page as plain text
+// (not HTML), which htmlToText and the changelog parser handle the same.
 const PROXIES = [
   (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
-  (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u),
   (u) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
+  (u) => "https://r.jina.ai/" + u,
+  (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u),
 ];
 
 const SNAP_KEY = "techcardx.snapshots";
@@ -32,22 +36,24 @@ function htmlToText(html) {
 }
 
 async function fetchViaProxies(url, timeoutMs = 15000) {
-  let lastErr = null;
+  const errors = [];
   for (const wrap of PROXIES) {
+    const proxied = wrap(url);
+    const relay = new URL(proxied).host;
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);
-      const res = await fetch(wrap(url), { signal: ctrl.signal });
+      const res = await fetch(proxied, { signal: ctrl.signal });
       clearTimeout(t);
       if (!res.ok) throw new Error("HTTP " + res.status);
       const body = await res.text();
       if (body.length < 200) throw new Error("Empty response");
       return body;
     } catch (e) {
-      lastErr = e;
+      errors.push(relay + ": " + (e.name === "AbortError" ? "timed out" : e.message));
     }
   }
-  throw lastErr || new Error("All relays failed");
+  throw new Error("All relays failed (" + errors.join("; ") + ")");
 }
 
 // Parse "Make YYYY[-YY] CUI ADV/FROM change to CUI ADV/TO" lines.
