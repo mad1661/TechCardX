@@ -219,9 +219,23 @@ function ruleWeightBreak(rec, ref, flags) {
   }
 }
 
+// Stock Eliminator (and Super Stock's SS/ and FSS/ classes) require the
+// engine year to match the body year, so a missing engine year on those
+// cards is implied by the body year. GT/FGT are excluded — those classes
+// exist precisely to run an engine the body didn't come with.
+function engineYearMustMatchBody(rec) {
+  const g = rec._parsedClass?.group;
+  return rec.category === "STK" || g === "SS" || g === "FSS";
+}
+
+function effectiveEngineYear(rec) {
+  if (rec.engineYear != null) return rec.engineYear;
+  return engineYearMustMatchBody(rec) ? rec.bodyYear : null;
+}
+
 function ruleRequiredPowertrain(rec, ref, flags) {
   if (rec.category !== "STK" && rec.category !== "SS") return;
-  if (rec.engineYear == null)
+  if (rec.engineYear == null && effectiveEngineYear(rec) == null)
     flags.push({
       code: "engine-year-missing",
       severity: "warning",
@@ -425,13 +439,18 @@ function ruleGroupSpecific(rec, ref, flags) {
         message: `GT combo with a ${rec.engineYear} engine in a ${rec.bodyYear} body — legal if the Guide lists it for the corporation, worth a look.`,
       });
   }
-  if (p.group === "STK" && rec.engineYear != null && rec.bodyYear != null) {
-    if (rec.engineYear !== rec.bodyYear)
+  if (engineYearMustMatchBody(rec) && rec.engineYear != null && rec.bodyYear != null) {
+    if (rec.engineYear !== rec.bodyYear) {
+      const label =
+        GROUP_TO_CATEGORY[p.group] === "STK" ? "Stock Eliminator" : `Super Stock ${p.group}`;
       flags.push({
-        code: "stock-engine-body-year-differ",
-        severity: "info",
-        message: `Engine year ${rec.engineYear} ≠ body year ${rec.bodyYear} on a Stock car — verify the combo is as delivered.`,
+        code: "engine-body-year-differ",
+        severity: "problem",
+        message:
+          `${label} requires the engine year to match the body year — ` +
+          `card shows a ${rec.engineYear} engine in a ${rec.bodyYear} body.`,
       });
+    }
   }
 }
 
@@ -458,20 +477,21 @@ function latestAdjustments(list) {
 
 function ruleHpAdjustments(rec, ref, flags) {
   if (!CLASS_CATS.has(rec.category)) return;
-  if (rec.engineYear == null || rec.cui == null || rec.hp == null) return;
+  const engYear = effectiveEngineYear(rec);
+  if (engYear == null || rec.cui == null || rec.hp == null) return;
   const fam = engineFamily(rec.engineMake, ref);
   if (!ref._latestAdj) ref._latestAdj = latestAdjustments(ref.hpAdjustments);
   for (const adj of ref._latestAdj) {
     const adjFam = ADJ_MAKE_FAMILY[adj.make.toUpperCase()] || adj.make;
     if (fam && adjFam !== fam) continue;
-    if (rec.engineYear < adj.yearFrom || rec.engineYear > adj.yearTo) continue;
+    if (engYear < adj.yearFrom || engYear > adj.yearTo) continue;
     if (rec.cui !== adj.cui || rec.hp !== adj.advHp) continue;
     if (rec.factoredHp === adj.factoredFrom) {
       flags.push({
         code: "factored-hp-outdated",
         severity: "problem",
         message:
-          `Factored HP for ${adj.make} ${rec.engineYear} ${adj.cui}/${adj.advHp} was changed ` +
+          `Factored HP for ${adj.make} ${engYear} ${adj.cui}/${adj.advHp} was changed ` +
           `${adj.factoredFrom} → ${adj.factoredTo} on ${adj.date} — card still shows the old ${adj.factoredFrom}.`,
       });
     } else if (rec.factoredHp != null && rec.factoredHp !== adj.factoredTo) {
@@ -479,7 +499,7 @@ function ruleHpAdjustments(rec, ref, flags) {
         code: "factored-hp-differs-from-bulletin",
         severity: "warning",
         message:
-          `NHRA set factored HP for ${adj.make} ${rec.engineYear} ${adj.cui}/${adj.advHp} to ` +
+          `NHRA set factored HP for ${adj.make} ${engYear} ${adj.cui}/${adj.advHp} to ` +
           `${adj.factoredTo} on ${adj.date}, but the card shows ${rec.factoredHp}. Verify against the current guide.`,
       });
     }
@@ -490,10 +510,11 @@ function ruleHpAdjustments(rec, ref, flags) {
 // and (displacement, advertised HP) combo must exist in the factory specs.
 function ruleEngineSpecs(rec, ref, flags) {
   if (rec.category !== "STK" && rec.category !== "SS") return;
-  if (rec.engineYear == null || rec.cui == null) return;
+  const engYear = effectiveEngineYear(rec);
+  if (engYear == null || rec.cui == null) return;
   const fam = engineFamily(rec.engineMake, ref);
   const specs = fam && ref.engineSpecs ? ref.engineSpecs[fam] : null;
-  const yearSpec = specs ? specs[String(rec.engineYear)] : null;
+  const yearSpec = specs ? specs[String(engYear)] : null;
   if (!yearSpec) return;
   const dispOk = yearSpec.displacements.some((d) => d.cui === rec.cui);
   if (!dispOk) {
@@ -501,7 +522,7 @@ function ruleEngineSpecs(rec, ref, flags) {
       code: "engine-disp-not-in-specs",
       severity: "warning",
       message:
-        `${rec.engineYear} ${rec.engineMake} blueprint specs list no ${rec.cui} CUI engine ` +
+        `${engYear} ${rec.engineMake} blueprint specs list no ${rec.cui} CUI engine ` +
         `(valid: ${[...new Set(yearSpec.displacements.map((d) => d.cui))].join(", ")}).`,
     });
     return;
@@ -518,7 +539,7 @@ function ruleEngineSpecs(rec, ref, flags) {
         code: "combo-not-in-specs",
         severity: "warning",
         message:
-          `No ${rec.engineYear} ${rec.engineMake} ${rec.cui}/${rec.hp} hp combo in the blueprint specs` +
+          `No ${engYear} ${rec.engineMake} ${rec.cui}/${rec.hp} hp combo in the blueprint specs` +
           (hps.length ? ` (listed for ${rec.cui} CUI: ${[...new Set(hps)].join(", ")} hp).` : "."),
       });
     }
