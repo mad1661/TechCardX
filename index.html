@@ -3,11 +3,108 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TechCardX</title>
+    <title>TechCardX — Problem Child Finder</title>
   </head>
   <body>
-    <h1>TechCardX</h1>
-    <p id="firebase-status">Initializing Firebase…</p>
+    <header class="app">
+      <div>
+        <h1>TechCardX</h1>
+        <div class="sub">Stock / Super Stock / Comp — Problem Child Finder</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="refbadge">
+        <span>
+          NHRA reference data <b id="refVersion"></b>
+          · updated <b id="refUpdated"></b>
+          <span id="refSource" class="muted"></span>
+        </span>
+        <button id="btnUpdate">Update</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <div id="dropzone">
+          <div><strong>Drop a tech card export here</strong> or click to choose a file</div>
+          <div class="hint">
+            Accepts both formats: TCND division export and Compulink track export (.xlsx)
+          </div>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="hidden" />
+        <div id="fileError"></div>
+      </section>
+
+      <section id="resultsSection" class="hidden">
+        <p id="uploadInfo" class="muted"></p>
+        <div class="summary">
+          <div class="stat"><div class="n" id="statTotal">0</div><div class="l">Cards</div></div>
+          <div class="stat problem"><div class="n" id="statProblem">0</div><div class="l">Problems</div></div>
+          <div class="stat warning"><div class="n" id="statWarning">0</div><div class="l">Warnings</div></div>
+          <div class="stat info"><div class="n" id="statInfo">0</div><div class="l">Info</div></div>
+          <div class="stat clean"><div class="n" id="statClean">0</div><div class="l">Clean</div></div>
+        </div>
+
+        <div class="toolbar">
+          <select id="sevFilter">
+            <option value="flagged">Flagged only</option>
+            <option value="all">All cards</option>
+            <option value="problem">Problems only</option>
+            <option value="warning">Warnings only</option>
+            <option value="info">Info only</option>
+          </select>
+          <select id="catFilter">
+            <option value="all">All categories</option>
+          </select>
+          <input type="search" id="searchBox" placeholder="Search driver, car #, class, body…" />
+          <div class="spacer"></div>
+          <span class="muted"><span id="shownCount">0</span> shown</span>
+          <button class="btn secondary" id="btnExportCsv">Export flagged CSV</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="results">
+            <thead>
+              <tr>
+                <th>Car #</th><th>Driver</th><th>Cat</th><th>Class</th>
+                <th>Engine</th><th>Body</th><th>HP / Factored</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+        <p class="muted" style="margin-top: 8px">
+          Click a row to see its flags. Cards are checked against the active NHRA reference
+          dataset — keep it current with the Update button.
+        </p>
+      </section>
+    </main>
+
+    <dialog id="updatePanel">
+      <div class="dlg-head">
+        <h2>NHRA reference data</h2>
+        <button class="btn secondary" id="btnCloseUpdate">Close</button>
+      </div>
+      <div class="dlg-body">
+        <p>
+          Class tables, weight breaks and the model dictionary come from the sources below.
+          NHRA revises factors and guides during the season — check these pages, and when
+          something changes, import an updated dataset. The header shows the date of the
+          data currently in use.
+        </p>
+        <ul class="sources" id="sourceList"></ul>
+        <div class="update-actions">
+          <label class="btn">
+            Import updated dataset (.json)
+            <input type="file" id="refImportFile" accept=".json" class="hidden" />
+          </label>
+          <button class="btn secondary" id="btnExportRef">Export current dataset</button>
+          <button class="btn secondary" id="btnResetRef">Reset to bundled</button>
+        </div>
+        <div id="updNotice" class="notice hidden"></div>
+      </div>
+    </dialog>
+
+    <footer class="app">TechCardX · tech-card screening aid — final classification always per the current NHRA Rulebook &amp; Classification Guide</footer>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
