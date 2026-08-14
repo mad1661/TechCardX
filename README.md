@@ -29,6 +29,18 @@ The web config in `src/firebase.js` identifies the project on the client and
 is [not a secret](https://firebase.google.com/docs/projects/api-keys) — access
 control comes from Firebase Security Rules.
 
+## Deploying to Firebase Hosting
+
+Hosting is configured in `firebase.json` (serves the `dist/` build output) and
+`.firebaserc` (targets the `techcardx` project). To deploy:
+
+```bash
+npm install -g firebase-tools   # one-time install of the Firebase CLI
+firebase login                  # one-time sign-in with your Google account
+npm run build                   # build the site into dist/
+firebase deploy                 # deploy to https://techcardx.web.app
+```
+
 ## Scripts
 
 - `npm run dev` — start the Vite dev server
