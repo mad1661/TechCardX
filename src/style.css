@@ -241,3 +241,16 @@ footer.app { text-align: center; color: var(--muted); font-size: 12.5px; padding
   #printSheet .sign { margin-top: 4px; font-size: 10.5px; color: #444; }
   #printSheet .footer { margin-top: 14px; font-size: 10px; color: #555; }
 }
+
+/* loading indicators */
+.spinner {
+  display: inline-block; width: 12px; height: 12px; flex: none;
+  border: 2px solid currentColor; border-top-color: transparent;
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  vertical-align: -2px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading {
+  margin-top: 10px; font-size: 13.5px; color: var(--muted);
+  display: flex; gap: 8px; align-items: center;
+}

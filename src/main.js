@@ -73,6 +73,7 @@ function setupUpdatePanel() {
     const list = $("#checkStatus");
     const notice = $("#updNotice");
     btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Checking…';
     list.innerHTML = "";
     notice.className = "notice hidden";
     const rows = new Map();
@@ -83,8 +84,13 @@ function setupUpdatePanel() {
         rows.set(label, li);
         list.appendChild(li);
       }
+      const badge =
+        status === "checking"
+          ? `<span class="st checking"><span class="spinner"></span> checking</span>`
+          : `<span class="st ${status}">${status}</span>`;
       li.innerHTML =
-        `<span class="st ${status}">${status}</span><span>${label}` +
+        badge +
+        `<span>${label}` +
         (detail ? ` <span class="muted">— ${detail}</span>` : "") +
         `</span>`;
     };
@@ -111,6 +117,7 @@ function setupUpdatePanel() {
       notice.textContent =
         "Live check failed (the relay services may be blocked or down): " + e.message;
     }
+    btn.textContent = "Check nhraracer.com now";
     btn.disabled = false;
   });
 
@@ -176,6 +183,11 @@ function setupDropzone() {
 
 async function handleFile(file) {
   $("#fileError").textContent = "";
+  const loading = $("#fileLoading");
+  $("#fileLoadingText").textContent = `Reading ${file.name}…`;
+  loading.classList.remove("hidden");
+  // let the spinner paint before the (synchronous) workbook parse blocks
+  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 30)));
   try {
     const buf = await file.arrayBuffer();
     const { format, records, fileName } = parseWorkbook(new Uint8Array(buf), file.name);
@@ -184,6 +196,7 @@ async function handleFile(file) {
   } catch (err) {
     $("#fileError").textContent = err.message;
   }
+  loading.classList.add("hidden");
 }
 
 function rerun() {
