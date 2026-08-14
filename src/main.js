@@ -1,6 +1,6 @@
 import { app } from "./firebase.js";
 import { parseWorkbook } from "./parsers.js";
-import { evaluate, SEVERITY_ORDER } from "./rules.js";
+import { evaluate } from "./rules.js";
 import {
   getRefData,
   importRefData,
@@ -220,7 +220,7 @@ function filteredResults() {
     })
     .sort(
       (a, b) =>
-        SEVERITY_ORDER[a.maxSeverity] - SEVERITY_ORDER[b.maxSeverity] ||
+        (a.record.category || "").localeCompare(b.record.category || "") ||
         (a.record.carNumber || "").localeCompare(b.record.carNumber || "", undefined, {
           numeric: true,
           sensitivity: "base",
