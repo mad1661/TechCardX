@@ -290,7 +290,7 @@ function renderTable() {
       <td class="mono">${esc(rec.klass) || "—"}</td>
       <td>${esc(rec.engineMake)} ${rec.engineYear ?? ""} ${rec.cui ? rec.cui + "ci" : ""}</td>
       <td>${esc(rec.bodyType)} ${rec.bodyYear ?? ""}</td>
-      <td>${rec.hp ?? "—"} / ${rec.factoredHp ?? "—"}</td>
+      <td>${rec.hp ?? "—"} / ${rec.factoredHp ?? "—"}${rec.gtHp != null ? ` <span class="muted">(GT ${rec.gtHp})</span>` : ""}</td>
       <td><span class="pill ${r.maxSeverity}">${r.maxSeverity === "clean" ? "OK" : r.flags.length + " flag" + (r.flags.length > 1 ? "s" : "")}</span></td>`;
     tbody.appendChild(tr);
     if (r.flags.length) {
@@ -317,7 +317,7 @@ function exportCsv() {
   const rows = [
     [
       "CarNumber", "Driver", "Category", "Class", "Engine", "Body",
-      "HP", "FactoredHP", "Severity", "Flags",
+      "HP", "FactoredHP", "GT_HP", "Severity", "Flags",
     ],
   ];
   for (const r of filteredResults()) {
@@ -332,6 +332,7 @@ function exportCsv() {
       `${rec.bodyType} ${rec.bodyYear ?? ""}`.trim(),
       rec.hp ?? "",
       rec.factoredHp ?? "",
+      rec.gtHp ?? "",
       r.maxSeverity,
       r.flags.map((f) => `[${f.severity}] ${f.message}`).join(" | "),
     ]);
@@ -369,7 +370,8 @@ function printProblemList() {
           `<div class="pcar ${r.maxSeverity}">` +
           `<div class="head">#${esc(rec.carNumber) || "—"} · ${esc(rec.firstName)} ${esc(rec.lastName)} · ${esc(rec.category)} ${esc(rec.klass)}</div>` +
           `<div class="sub">${esc(rec.engineMake)} ${rec.engineYear ?? "?"} ${rec.cui ? rec.cui + "ci" : ""} · ` +
-          `${esc(rec.bodyType)} ${rec.bodyYear ?? ""} · HP ${rec.hp ?? "—"} / factored ${rec.factoredHp ?? "—"}</div>` +
+          `${esc(rec.bodyType)} ${rec.bodyYear ?? ""} · HP ${rec.hp ?? "—"} / factored ${rec.factoredHp ?? "—"}` +
+          `${rec.gtHp != null ? ` / GT ${rec.gtHp}` : ""}</div>` +
           r.flags
             .map(
               (f) =>

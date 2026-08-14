@@ -34,6 +34,16 @@ function parseDate(v) {
   return isNaN(d) ? null : d;
 }
 
+// The GT Horsepower box at the top of the card comes through the exports
+// under varying headers (GT_HP, GT HP, GTHP, GT Horsepower...); sniff for
+// it rather than hard-coding one spelling.
+function findGtHp(row) {
+  const key = Object.keys(row).find((k) =>
+    /(^|[^a-z])gt[ _-]*(h\.?p|horse ?power)/i.test(k)
+  );
+  return key ? num(row[key]) : null;
+}
+
 export function detectFormat(headers) {
   const set = new Set(headers.map((h) => str(h)));
   if (set.has("Submission_ID") && set.has("CarBike_Num")) return "tcnd";
@@ -58,6 +68,7 @@ function fromTcnd(row) {
     bodyYear: num(row["Body_Year"]),
     hp: num(row["Advertised_HP"]),
     factoredHp: num(row["factoredHp137"]),
+    gtHp: findGtHp(row),
     pwFactor: num(row["PW_Factor"]),
     minWeight: num(row["Min_Wieght"]), // header typo is in the source export
     transmission: str(row["Transmission_Details_Type"]),
@@ -93,6 +104,7 @@ function fromCompulink(row) {
     bodyYear: num(row["Body Year"]),
     hp: num(row["HP"]),
     factoredHp: num(row["Factored HP"]),
+    gtHp: findGtHp(row),
     pwFactor: null,
     minWeight: null,
     transmission: "",
