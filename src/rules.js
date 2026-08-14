@@ -200,15 +200,20 @@ function ruleWeightBreak(rec, ref, flags) {
 
   // Minimum as-raced weight = top of class break × factored HP + 170 lb
   // driver allowance (confirmed NHRA formula for Stock-side classes).
-  if (rec.minWeight != null && rec.factoredHp != null && rec.factoredHp > 0) {
-    const expected = range.min * rec.factoredHp + 170;
+  // GT/FGT cars are classed on the GT Horsepower from the box at the top
+  // of the card, not the regular factored HP.
+  const gtGroup = p.group === "GT" || p.group === "FGT";
+  const hpBasis = gtGroup && rec.gtHp != null ? rec.gtHp : rec.factoredHp;
+  const hpLabel = gtGroup && rec.gtHp != null ? "GT hp" : "hp";
+  if (rec.minWeight != null && hpBasis != null && hpBasis > 0) {
+    const expected = range.min * hpBasis + 170;
     if (Math.abs(rec.minWeight - expected) > 60) {
       flags.push({
         code: "min-weight-mismatch",
         severity: "warning",
         message:
           `Card min weight ${rec.minWeight} vs computed ${Math.round(expected)} ` +
-          `(${range.min} lbs/hp × ${rec.factoredHp} hp + 170 driver) for ${rec.klass}. Verify.`,
+          `(${range.min} lbs/hp × ${hpBasis} ${hpLabel} + 170 driver) for ${rec.klass}. Verify.`,
       });
     }
   }
@@ -228,13 +233,13 @@ function ruleRequiredPowertrain(rec, ref, flags) {
       severity: "warning",
       message: "No engine size (CUI) on the card.",
     });
-  if (rec.factoredHp == null && rec.hp == null)
+  if (rec.factoredHp == null && rec.hp == null && rec.gtHp == null)
     flags.push({
       code: "hp-missing",
       severity: "problem",
       message: "Neither advertised nor factored HP entered — car cannot be classed.",
     });
-  else if (rec.factoredHp == null)
+  else if (rec.factoredHp == null && rec.gtHp == null)
     flags.push({
       code: "factored-hp-missing",
       severity: "warning",
@@ -371,6 +376,36 @@ function ruleGroupSpecific(rec, ref, flags) {
       code: "fwd-engine-too-big",
       severity: "warning",
       message: `${rec.klass} is a front-wheel-drive Stock class but engine is ${rec.cui} CUI — verify.`,
+    });
+  }
+  // GT cars are classed on the GT Horsepower designated in the box at the
+  // top of the card — a GT entry without one cannot be verified, and a
+  // GT HP on a non-GT card is worth a look.
+  if (p.group === "GT" || p.group === "FGT") {
+    if (rec.gtHp == null) {
+      flags.push({
+        code: "gt-hp-missing",
+        severity: "problem",
+        message:
+          `${rec.klass} is a GT class but no GT Horsepower is designated on the card — ` +
+          `GT cars must be classed on the GT HP from the box at the top of the card.`,
+      });
+    } else if (rec.factoredHp != null && rec.gtHp === rec.factoredHp) {
+      flags.push({
+        code: "gt-hp-equals-factored",
+        severity: "info",
+        message:
+          `GT HP and factored HP are both ${rec.gtHp} — fine if the Guide agrees, ` +
+          `but check it isn't a copy-over.`,
+      });
+    }
+  } else if (rec.gtHp != null) {
+    flags.push({
+      code: "gt-hp-on-non-gt",
+      severity: "warning",
+      message:
+        `Card designates GT Horsepower ${rec.gtHp} but the class is ${rec.klass || "not GT"} — ` +
+        `either the class or the GT HP box is wrong.`,
     });
   }
   // GT permits any Guide-listed same-corporation engine that didn't come
