@@ -1,0 +1,40 @@
+# Auto-deploy to Firebase Hosting.
+#
+# Fires on every push to the default branch (i.e. every merged PR) and can
+# also be run by hand from the Actions tab ("Run workflow").
+#
+# One-time setup required: add a repository secret named
+# FIREBASE_SERVICE_ACCOUNT_TECHCARDX containing a Firebase service-account
+# JSON key (Firebase console → Project settings → Service accounts →
+# Generate new private key). Without it the deploy step fails with an
+# authentication error.
+
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - claude/firebase-initialization-setup-ul5mkd
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TECHCARDX }}
+          channelId: live
+          projectId: techcardx
