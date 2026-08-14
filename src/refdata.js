@@ -68,6 +68,9 @@ export const BUNDLED = {
   // off until a verified table is imported. W/S is four-cylinder, 24.0+.
   // Min as-raced weight = top break × factored HP + 170 lb (driver).
   stockBreaks: {
+    // AAA/S(A) is the quickest Stock class (anything under the AA/S 7.50
+    // floor); its published break is unconfirmed → numeric check stays off.
+    AAA: { min: null, max: null },
     AA: { min: 7.5, max: 7.99 },
     A: { min: 8.0, max: 8.49 },
     B: { min: 8.5, max: 8.99 },
