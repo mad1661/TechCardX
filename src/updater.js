@@ -35,9 +35,11 @@ function htmlToText(html) {
   return (doc.body?.textContent || "").replace(/\s+/g, " ").trim();
 }
 
-async function fetchViaProxies(url, timeoutMs = 15000) {
-  const errors = [];
-  for (const wrap of PROXIES) {
+// All relays are tried concurrently and the first good response wins —
+// some watched pages (the AHFS list) take 15s+ to serve, so sequential
+// attempts stacked timeouts until the whole page failed.
+async function fetchViaProxies(url, timeoutMs = 30000) {
+  const attempts = PROXIES.map(async (wrap) => {
     const proxied = wrap(url);
     const relay = new URL(proxied).host;
     try {
@@ -50,10 +52,15 @@ async function fetchViaProxies(url, timeoutMs = 15000) {
       if (body.length < 200) throw new Error("Empty response");
       return body;
     } catch (e) {
-      errors.push(relay + ": " + (e.name === "AbortError" ? "timed out" : e.message));
+      throw new Error(relay + ": " + (e.name === "AbortError" ? "timed out" : e.message));
     }
+  });
+  try {
+    return await Promise.any(attempts);
+  } catch (e) {
+    const reasons = (e.errors || [e]).map((err) => err.message);
+    throw new Error("All relays failed (" + reasons.join("; ") + ")");
   }
-  throw new Error("All relays failed (" + errors.join("; ") + ")");
 }
 
 // Parse "Make YYYY[-YY] CUI ADV/FROM change to CUI ADV/TO" lines.
