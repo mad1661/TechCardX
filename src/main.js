@@ -9,6 +9,7 @@ import {
   isCustomRefData,
 } from "./refdata.js";
 import { checkWebsite, getLastChecked } from "./updater.js";
+import { importNhraFile } from "./docimport.js";
 import "./style.css";
 
 const $ = (sel) => document.querySelector(sel);
@@ -131,21 +132,29 @@ function setupUpdatePanel() {
   });
 
   $("#refImportFile").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = [...e.target.files];
+    if (!files.length) return;
     const notice = $("#updNotice");
-    try {
-      const obj = JSON.parse(await file.text());
-      importRefData(obj, file.name);
-      renderRefBadge();
-      notice.className = "notice ok";
-      notice.textContent =
-        "Reference data updated from " + file.name + ". Re-run any open upload to apply.";
-      if (currentMeta) rerun();
-    } catch (err) {
-      notice.className = "notice err";
-      notice.textContent = "Import failed: " + err.message;
+    const lines = [];
+    let ok = 0;
+    for (const file of files) {
+      try {
+        if (file.name.toLowerCase().endsWith(".json")) {
+          importRefData(JSON.parse(await file.text()), file.name);
+          lines.push(file.name + ": dataset imported.");
+        } else {
+          lines.push(importNhraFile(file.name, await file.arrayBuffer()));
+        }
+        ok++;
+      } catch (err) {
+        lines.push("✗ " + err.message);
+      }
     }
+    renderRefBadge();
+    notice.className = ok ? "notice ok" : "notice err";
+    notice.textContent =
+      lines.join(" ") + (ok && currentMeta ? " Re-checked the open upload." : "");
+    if (ok && currentMeta) rerun();
     e.target.value = "";
   });
 
