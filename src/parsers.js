@@ -35,12 +35,13 @@ function parseDate(v) {
 }
 
 // The GT Horsepower box at the top of the card comes through the exports
-// under varying headers (GT_HP, GT HP, GTHP, GT Horsepower...); sniff for
-// it rather than hard-coding one spelling.
+// under varying headers (GT_HP, GT HP, GTHP, GT Horsepower...) — when it
+// comes through at all: the TCND download omits the box entirely, and the
+// rules engine treats a missing column differently from a blank cell.
+const GT_HP_HEADER_RE = /(^|[^a-z])gt[ _-]*(h\.?p|horse ?power)/i;
+
 function findGtHp(row) {
-  const key = Object.keys(row).find((k) =>
-    /(^|[^a-z])gt[ _-]*(h\.?p|horse ?power)/i.test(k)
-  );
+  const key = Object.keys(row).find((k) => GT_HP_HEADER_RE.test(k));
   return key ? num(row[key]) : null;
 }
 
@@ -131,10 +132,14 @@ export function parseWorkbook(buffer, fileName = "") {
     const format = detectFormat(headers);
     if (!format) continue;
     const mapper = format === "tcnd" ? fromTcnd : fromCompulink;
+    const hasGtHpColumn = headers.some((h) => GT_HP_HEADER_RE.test(str(h)));
     const records = rows
       .map(mapper)
       .filter((r) => r.carNumber || r.lastName || r.category);
-    records.forEach((r, i) => (r.rowIndex = i + 2)); // 1-based + header row
+    records.forEach((r, i) => {
+      r.rowIndex = i + 2; // 1-based + header row
+      r.gtHpOnExport = hasGtHpColumn;
+    });
     return { format, records, warnings, sheetName, fileName };
   }
   throw new Error(
