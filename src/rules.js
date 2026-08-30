@@ -168,9 +168,8 @@ function ruleClassValid(rec, ref, flags) {
   rec._parsedClass = parsed;
 }
 
-function ruleWeightBreak(rec, ref, flags) {
-  const p = rec._parsedClass;
-  if (!p) return;
+// Weight-break range for a parsed class, or null when unknown/unconfirmed.
+function breakRange(p, ref) {
   const tables = {
     STK: ref.stockBreaks,
     FWD: ref.fwdBreaks,
@@ -181,9 +180,16 @@ function ruleWeightBreak(rec, ref, flags) {
     FS: ref.fsBreaks,
   };
   const table = tables[p.group];
-  if (!table || !p.letter) return;
+  if (!table || !p.letter) return null;
   const range = table[p.letter];
-  if (!range || range.min == null) return;
+  return range && range.min != null ? range : null;
+}
+
+function ruleWeightBreak(rec, ref, flags) {
+  const p = rec._parsedClass;
+  if (!p) return;
+  const range = breakRange(p, ref);
+  if (!range) return;
 
   // TCND exports carry the pounds-per-HP factor directly.
   if (rec.pwFactor != null) {
@@ -201,10 +207,13 @@ function ruleWeightBreak(rec, ref, flags) {
   // Minimum as-raced weight = top of class break × factored HP + 170 lb
   // driver allowance (confirmed NHRA formula for Stock-side classes).
   // GT/FGT cars are classed on the GT Horsepower from the box at the top
-  // of the card, not the regular factored HP.
+  // of the card, not the regular factored HP — without a GT HP the check
+  // would compare against the wrong number, so it is skipped (the GT HP
+  // rule below reverse-derives the implied GT HP instead).
   const gtGroup = p.group === "GT" || p.group === "FGT";
-  const hpBasis = gtGroup && rec.gtHp != null ? rec.gtHp : rec.factoredHp;
-  const hpLabel = gtGroup && rec.gtHp != null ? "GT hp" : "hp";
+  if (gtGroup && rec.gtHp == null) return;
+  const hpBasis = gtGroup ? rec.gtHp : rec.factoredHp;
+  const hpLabel = gtGroup ? "GT hp" : "hp";
   if (rec.minWeight != null && hpBasis != null && hpBasis > 0) {
     const expected = range.min * hpBasis + 170;
     if (Math.abs(rec.minWeight - expected) > 60) {
@@ -397,13 +406,35 @@ function ruleGroupSpecific(rec, ref, flags) {
   // GT HP on a non-GT card is worth a look.
   if (p.group === "GT" || p.group === "FGT") {
     if (rec.gtHp == null) {
-      flags.push({
-        code: "gt-hp-missing",
-        severity: "problem",
-        message:
-          `${rec.klass} is a GT class but no GT Horsepower is designated on the card — ` +
-          `GT cars must be classed on the GT HP from the box at the top of the card.`,
-      });
+      if (rec.gtHpOnExport) {
+        // The export carries the GT HP box and this card left it blank.
+        flags.push({
+          code: "gt-hp-missing",
+          severity: "problem",
+          message:
+            `${rec.klass} is a GT class but no GT Horsepower is designated on the card — ` +
+            `GT cars must be classed on the GT HP from the box at the top of the card.`,
+        });
+      } else {
+        // The download format has no GT HP column at all, so its absence
+        // says nothing about the physical card. Reverse-derive what the
+        // card's min weight implies so tech has a number to compare.
+        const range = breakRange(p, ref);
+        const implied =
+          range && rec.minWeight != null && rec.minWeight > 170
+            ? Math.round((rec.minWeight - 170) / range.min)
+            : null;
+        flags.push({
+          code: "gt-hp-check",
+          severity: "info",
+          message:
+            `${rec.klass} is classed on the GT Horsepower box, which this download doesn't include — ` +
+            (implied != null
+              ? `the card's min weight ${rec.minWeight} implies ≈${implied} GT hp for ${rec.klass}; `
+              : ``) +
+            `check the box on the physical card.`,
+        });
+      }
     } else if (rec.factoredHp != null && rec.gtHp === rec.factoredHp) {
       flags.push({
         code: "gt-hp-equals-factored",
