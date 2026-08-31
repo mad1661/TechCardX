@@ -112,6 +112,20 @@
           currently in use.
         </p>
         <ul class="sources" id="sourceList"></ul>
+        <p class="muted" id="linkHelp">
+          Links marked <b>checked live</b> are the pages the check above fetches. NHRA moves
+          these pages during the season — if one is dead or points somewhere new, fix it with
+          <b>Edit links</b>. Edits are saved in this browser; “Reset to bundled” brings the
+          shipped links back.
+        </p>
+        <div class="update-actions" id="linkViewActions">
+          <button class="btn secondary" id="btnEditLinks">Edit links</button>
+        </div>
+        <div class="update-actions hidden" id="linkEditActions">
+          <button class="btn" id="btnSaveLinks">Save links</button>
+          <button class="btn secondary" id="btnAddLink">Add a link</button>
+          <button class="btn secondary" id="btnCancelLinks">Cancel</button>
+        </div>
         <div class="update-actions">
           <label class="btn">
             Import NHRA update files (.doc / .rtf / .json)

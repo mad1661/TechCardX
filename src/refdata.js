@@ -10,52 +10,50 @@ import { hpAdjustments, guideNotices, engineSpecs } from "./refdata-nhra-docs.js
 
 export const BUNDLED = {
   meta: {
-    version: "2026.2",
+    version: "2026.3",
     lastUpdated: "2026-08-14",
     updatedBy: "bundled with app",
-    // Pages the website updater fetches and diffs for changes.
+    // Source links live here and are editable in the Update panel — NHRA
+    // moves these pages around mid-season without the class tables
+    // changing. watchPages is the subset the live check fetches and diffs.
     watchPages: [
       {
         label: "Stock Car Classification Guides",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46635&z=132",
+        url: "https://www.nhraracer.com/stockcarclassification",
       },
       {
-        label: "AHFS / HP adjustments",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46633&z=132",
-      },
-      {
-        label: "Indexes and Records",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46999&z=132",
-      },
-      {
-        label: "NHRA Accepted Products",
-        url: "https://www.nhraracer.com/content/general.asp?articleid=53545&zoneid=132",
-      },
-    ],
-    sources: [
-      {
-        label: "Stock Car Classification Guides (per-manufacturer PDFs)",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46635&z=132",
-      },
-      {
-        label: "AHFS — Automatic Horsepower Factoring System / HP adjustments",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46633&z=132",
+        label: "AHFS — Automatic Horsepower Factoring System",
+        url: "https://www.nhraracer.com/automatic-horesepower-factoring-system",
       },
       {
         label: "Class Indexes and Records",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46999&z=132",
-      },
-      {
-        label: "Class Indexes (nhra.com)",
         url: "https://www.nhra.com/stats/class_indexes",
       },
       {
         label: "NHRA Accepted Products",
-        url: "https://www.nhraracer.com/content/general.asp?articleid=53545&zoneid=132",
+        url: "https://www.nhraracer.com/nhra-accepted-products",
+      },
+    ],
+    sources: [
+      {
+        label: "Stock Car Classification Guides",
+        url: "https://www.nhraracer.com/stockcarclassification",
+      },
+      {
+        label: "AHFS — Automatic Horsepower Factoring System",
+        url: "https://www.nhraracer.com/automatic-horesepower-factoring-system",
+      },
+      {
+        label: "Class Indexes and Records",
+        url: "https://www.nhra.com/stats/class_indexes",
+      },
+      {
+        label: "NHRA Accepted Products",
+        url: "https://www.nhraracer.com/nhra-accepted-products",
       },
       {
         label: "Rulebook Amendments (weight breaks live in the Rulebook)",
-        url: "https://www.nhraracer.com/Files/Tech/2026_rulebook_amendments.pdf",
+        url: "https://cded0053-5924-4065-aed4-4712eecaf2ea.filesusr.com/ugd/01cfb3_335af7caa37245aeacf020c824c49da5.pdf",
       },
     ],
   },
@@ -382,6 +380,54 @@ export function exportRefData() {
   return JSON.stringify(getRefData(), null, 2);
 }
 
+// A dataset that only differs from the bundled copy by its source links
+// still counts as bundled data — the class tables are untouched, so the
+// header shouldn't claim an import happened.
 export function isCustomRefData() {
-  return getRefData() !== BUNDLED;
+  const ref = getRefData();
+  return ref !== BUNDLED && ref.meta.updatedBy !== BUNDLED.meta.updatedBy;
+}
+
+// Unified view of the link lists for the Update panel: one entry per URL,
+// watch=true for the pages the live check fetches and diffs.
+export function getSourceLinks() {
+  const ref = getRefData();
+  const byUrl = new Map();
+  for (const s of ref.meta.sources || [])
+    byUrl.set(s.url, { label: s.label, url: s.url, watch: false });
+  for (const w of ref.meta.watchPages || []) {
+    const found = byUrl.get(w.url);
+    if (found) found.watch = true;
+    else byUrl.set(w.url, { label: w.label, url: w.url, watch: true });
+  }
+  return [...byUrl.values()];
+}
+
+// Persist edited source links. NHRA moves these pages around mid-season
+// without the class tables changing, so this deliberately leaves
+// meta.lastUpdated / updatedBy alone: the header keeps reporting when the
+// *data* was last updated, not when a link was fixed.
+export function saveSourceLinks(links) {
+  const clean = [];
+  for (const link of links) {
+    const url = String(link.url || "").trim();
+    const label = String(link.label || "").trim() || url;
+    if (!url) continue;
+    if (!/^https?:\/\//i.test(url))
+      throw new Error(`"${label}" — the link must start with http:// or https://`);
+    if (clean.some((c) => c.url === url)) continue;
+    clean.push({ label, url, watch: !!link.watch });
+  }
+  if (!clean.length) throw new Error("Keep at least one source link.");
+  const next = JSON.parse(JSON.stringify(getRefData()));
+  next.meta.sources = clean.map(({ label, url }) => ({ label, url }));
+  next.meta.watchPages = clean.filter((l) => l.watch).map(({ label, url }) => ({ label, url }));
+  next.meta.linksUpdated = new Date().toISOString().slice(0, 10);
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(next));
+  } catch (e) {
+    /* links still apply for this session */
+  }
+  active = next;
+  return clean;
 }
