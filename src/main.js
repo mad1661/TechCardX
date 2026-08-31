@@ -7,6 +7,8 @@ import {
   resetRefData,
   exportRefData,
   isCustomRefData,
+  getSourceLinks,
+  saveSourceLinks,
 } from "./refdata.js";
 import { checkWebsite, getLastChecked } from "./updater.js";
 import { importNhraFile } from "./docimport.js";
@@ -16,6 +18,9 @@ const $ = (sel) => document.querySelector(sel);
 
 let currentResults = null;
 let currentMeta = null;
+// Working copy of the source links while the Update panel is in edit mode;
+// null means the list is in read-only mode.
+let linkDraft = null;
 
 // ------------------------------------------------------------ ref badge
 
@@ -41,24 +46,81 @@ function renderLastChecked() {
     : "Never checked from this browser yet.";
 }
 
-function openUpdatePanel() {
-  const ref = getRefData();
+// Source list, in read-only mode or as an editor over linkDraft.
+function renderSources() {
+  const editing = linkDraft !== null;
   const list = $("#sourceList");
   list.innerHTML = "";
-  const linkItems = [...(ref.meta.watchPages || []), ...(ref.meta.sources || [])];
-  const seen = new Set();
-  for (const s of linkItems) {
-    if (seen.has(s.url)) continue;
-    seen.add(s.url);
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = s.url;
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.textContent = s.label;
-    li.appendChild(a);
-    list.appendChild(li);
+  list.classList.toggle("editing", editing);
+  $("#linkViewActions").classList.toggle("hidden", editing);
+  $("#linkEditActions").classList.toggle("hidden", !editing);
+
+  if (!editing) {
+    for (const s of getSourceLinks()) {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = s.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = s.label;
+      li.appendChild(a);
+      if (s.watch) {
+        const tag = document.createElement("span");
+        tag.className = "watch-tag";
+        tag.textContent = "checked live";
+        li.appendChild(tag);
+      }
+      const url = document.createElement("div");
+      url.className = "link-url";
+      url.textContent = s.url;
+      li.appendChild(url);
+      list.appendChild(li);
+    }
+    return;
   }
+
+  linkDraft.forEach((link, i) => {
+    const li = document.createElement("li");
+
+    const label = document.createElement("input");
+    label.type = "text";
+    label.className = "link-label-input";
+    label.placeholder = "What this page is";
+    label.value = link.label;
+    label.addEventListener("input", () => (linkDraft[i].label = label.value));
+
+    const url = document.createElement("input");
+    url.type = "url";
+    url.className = "link-url-input";
+    url.placeholder = "https://…";
+    url.value = link.url;
+    url.addEventListener("input", () => (linkDraft[i].url = url.value));
+
+    const watchWrap = document.createElement("label");
+    watchWrap.className = "watch-toggle";
+    const watch = document.createElement("input");
+    watch.type = "checkbox";
+    watch.checked = link.watch;
+    watch.addEventListener("change", () => (linkDraft[i].watch = watch.checked));
+    watchWrap.append(watch, document.createTextNode(" check this page live"));
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn secondary link-remove";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => {
+      linkDraft.splice(i, 1);
+      renderSources();
+    });
+
+    li.append(label, url, watchWrap, remove);
+    list.appendChild(li);
+  });
+}
+
+function openUpdatePanel() {
+  linkDraft = null;
+  renderSources();
   renderLastChecked();
   $("#checkStatus").innerHTML = "";
   $("#updNotice").className = "notice hidden";
@@ -122,6 +184,42 @@ function setupUpdatePanel() {
     btn.disabled = false;
   });
 
+  $("#btnEditLinks").addEventListener("click", () => {
+    linkDraft = getSourceLinks();
+    renderSources();
+  });
+
+  $("#btnAddLink").addEventListener("click", () => {
+    if (!linkDraft) return;
+    linkDraft.push({ label: "", url: "", watch: false });
+    renderSources();
+    $("#sourceList").lastElementChild?.querySelector("input")?.focus();
+  });
+
+  $("#btnCancelLinks").addEventListener("click", () => {
+    linkDraft = null;
+    renderSources();
+  });
+
+  $("#btnSaveLinks").addEventListener("click", () => {
+    const notice = $("#updNotice");
+    try {
+      const saved = saveSourceLinks(linkDraft);
+      linkDraft = null;
+      renderSources();
+      renderRefBadge();
+      // Snapshots are keyed by URL, so a changed link reads as a new page
+      // on the next check rather than a false "changed".
+      $("#checkStatus").innerHTML = "";
+      const watched = saved.filter((l) => l.watch).length;
+      notice.className = "notice ok";
+      notice.textContent = `Saved ${saved.length} source link(s), ${watched} checked live.`;
+    } catch (e) {
+      notice.className = "notice err";
+      notice.textContent = "Links not saved: " + e.message;
+    }
+  });
+
   $("#btnExportRef").addEventListener("click", () => {
     const blob = new Blob([exportRefData()], { type: "application/json" });
     const a = document.createElement("a");
@@ -151,6 +249,7 @@ function setupUpdatePanel() {
       }
     }
     renderRefBadge();
+    renderSources();
     notice.className = ok ? "notice ok" : "notice err";
     notice.textContent =
       lines.join(" ") + (ok && currentMeta ? " Re-checked the open upload." : "");
@@ -160,10 +259,12 @@ function setupUpdatePanel() {
 
   $("#btnResetRef").addEventListener("click", () => {
     resetRefData();
+    linkDraft = null;
+    renderSources();
     renderRefBadge();
     const notice = $("#updNotice");
     notice.className = "notice ok";
-    notice.textContent = "Reverted to the bundled dataset.";
+    notice.textContent = "Reverted to the bundled dataset and source links.";
     if (currentMeta) rerun();
   });
 }
