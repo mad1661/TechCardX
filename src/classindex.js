@@ -193,10 +193,21 @@ export function parseIndexPage(body) {
       const cells = (tr.match(/<td[^>]*>[\s\S]*?<\/td>/gi) || []).map(decode);
       pushRow(cells);
     }
-  } else {
-    for (const line of text.split(/\r?\n/)) {
-      if (line.includes("|")) pushRow(line.split("|"));
-      else pushRow(line.trim().split(/\s+(?=\d{1,2}\.\d)/));
+  }
+  if (!rows.length) {
+    // Plain text / markdown (the r.jina.ai reader). It flattens the whole
+    // table onto ONE line — "**Class****1/4 Mile****1/8 Mile** AA/AM 07.03
+    // 04.49 AA/AT 06.87 04.39 …" — or emits "| AA/AM | 07.03 | 04.49 |"
+    // markdown rows, or one row per line. Scan for "class idx idx" triples
+    // anywhere after the table heading instead of relying on line breaks.
+    const plainText = /<[a-z]/i.test(text) ? decode(text) : text;
+    const hIdx = plainText.search(/(Comp Eliminator|Super Stock|Stock|Super Categories) Indexes|SUPER CATEGORIES/i);
+    const seg = hIdx >= 0 ? plainText.slice(hIdx) : plainText;
+    const TRIPLE =
+      /(?:^|[\s|*])([A-Za-z][A-Za-z0-9]*(?:\/[A-Za-z0-9]+(?:-\d+)?)?)[\s|*]+(\d{1,2}\.\d{2,3})[\s|*]+(\d{1,2}\.\d{2,3})(?=[\s|*]|$)/g;
+    let m;
+    while ((m = TRIPLE.exec(seg))) {
+      pushRow([m[1], m[2], m[3]]);
     }
   }
   const plain = /<[a-z]/i.test(text) ? decode(text) : text.replace(/\s+/g, " ");
