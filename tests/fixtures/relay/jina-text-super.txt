@@ -1,0 +1,15 @@
+Title: NHRA Class Indexes
+
+URL Source: https://www.nhra.net/stats/indexes.html?class=Super
+
+Markdown Content:
+## Class Index
+
+ The NHRA Index System is used to handicap cars running in the various NHRA classes. The index for each class is based on past and potential performance. Comparing the index for the two classes involved in a handicap race will provide the handicap difference for the start of the race. Super Stock and Stock class cars can break out and therefore are given the opportunity to dial under their index. [Competition Eliminator](https://www.nhra.net/stats/indexes.html?class=Comp), [Super Stock](https://www.nhra.net/stats/indexes.html?class=Super%20Stock), [Stock](https://www.nhra.net/stats/indexes.html?class=Stock), [Super Comp/Gas/Street](https://www.nhra.net/stats/indexes.html?class=Super), [1/4 National Records](https://www.nhra.net/stats/natrecord.html)
+
+* * *
+
+[](https://www.nhra.net/stats/indexes.html?class=Super)**SUPER CATEGORIES**
+SuperComp 8.90 5.70
+SuperGas 9.90 6.30
+SuperStreet 10.90 6.90
