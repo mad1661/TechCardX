@@ -7,55 +7,63 @@
 // dataset is active.
 
 import { hpAdjustments, guideNotices, engineSpecs } from "./refdata-nhra-docs.js";
+import { BUNDLED_CLASS_INDEX } from "./classindex.js";
 
 export const BUNDLED = {
   meta: {
-    version: "2026.2",
-    lastUpdated: "2026-08-14",
+    version: "2026.3",
+    lastUpdated: "2026-10-08",
     updatedBy: "bundled with app",
-    // Pages the website updater fetches and diffs for changes.
+    // Pages the website updater fetches and diffs for changes. (NHRA moved
+    // these off the old APCMviewer.asp / general.asp URLs, which now 404.)
+    // The class index tables are refreshed separately (classindex.js).
     watchPages: [
       {
         label: "Stock Car Classification Guides",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46635&z=132",
+        url: "https://www.nhraracer.com/stockcarclassification",
       },
       {
         label: "AHFS / HP adjustments",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46633&z=132",
-      },
-      {
-        label: "Indexes and Records",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46999&z=132",
+        // sic — NHRA's own slug is misspelled
+        url: "https://www.nhraracer.com/automatic-horesepower-factoring-system",
       },
       {
         label: "NHRA Accepted Products",
-        url: "https://www.nhraracer.com/content/general.asp?articleid=53545&zoneid=132",
+        url: "https://www.nhraracer.com/nhra-accepted-products",
       },
     ],
     sources: [
       {
         label: "Stock Car Classification Guides (per-manufacturer PDFs)",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46635&z=132",
+        url: "https://www.nhraracer.com/stockcarclassification",
       },
       {
         label: "AHFS — Automatic Horsepower Factoring System / HP adjustments",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46633&z=132",
-      },
-      {
-        label: "Class Indexes and Records",
-        url: "https://www.nhraracer.com/apcm/APCMviewer.asp?a=46999&z=132",
+        url: "https://www.nhraracer.com/automatic-horesepower-factoring-system",
       },
       {
         label: "Class Indexes (nhra.com)",
         url: "https://www.nhra.com/stats/class_indexes",
       },
       {
-        label: "NHRA Accepted Products",
-        url: "https://www.nhraracer.com/content/general.asp?articleid=53545&zoneid=132",
+        label: "Class Indexes — Comp Eliminator table",
+        url: "https://www.nhra.net/stats/indexes.html?class=Comp",
       },
       {
-        label: "Rulebook Amendments (weight breaks live in the Rulebook)",
-        url: "https://www.nhraracer.com/Files/Tech/2026_rulebook_amendments.pdf",
+        label: "Class Indexes — Super Stock table",
+        url: "https://www.nhra.net/stats/indexes.html?class=Super%20Stock",
+      },
+      {
+        label: "Class Indexes — Stock table",
+        url: "https://www.nhra.net/stats/indexes.html?class=Stock",
+      },
+      {
+        label: "NHRA Accepted Products",
+        url: "https://www.nhraracer.com/nhra-accepted-products",
+      },
+      {
+        label: "2026 Rulebook Amendments (weight breaks live in the Rulebook)",
+        url: "https://cded0053-5924-4065-aed4-4712eecaf2ea.filesusr.com/ugd/01cfb3_335af7caa37245aeacf020c824c49da5.pdf",
       },
     ],
   },
@@ -331,6 +339,10 @@ export const BUNDLED = {
   hpAdjustments,
   guideNotices,
   engineSpecs,
+
+  // ---- NHRA class index (Comp / Super Stock / Stock tables) ------------
+  // Which class designations exist, with 1/4- and 1/8-mile indexes.
+  classIndex: BUNDLED_CLASS_INDEX,
 };
 
 const LS_KEY = "techcardx.refdata";
@@ -346,7 +358,7 @@ export function getRefData() {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed && parsed.meta && parsed.stockBreaks) {
-        active = parsed;
+        active = upgradeStored(parsed);
         return active;
       }
     }
@@ -355,6 +367,28 @@ export function getRefData() {
   }
   active = BUNDLED;
   return active;
+}
+
+// A dataset saved in localStorage (by an import or a website check) used to
+// shadow the bundled copy forever, so app updates never reached browsers
+// that had ever run a check — they kept dead source links, no class index,
+// and old tables. Fill in anything the stored copy is missing or has older
+// than the bundle, keeping what the user actually imported/collected.
+export function upgradeStored(stored) {
+  const out = { ...stored, meta: { ...stored.meta } };
+  for (const [k, v] of Object.entries(BUNDLED)) if (out[k] == null) out[k] = v;
+  // source links are app config, not data — always use the shipped ones
+  out.meta.watchPages = BUNDLED.meta.watchPages;
+  out.meta.sources = BUNDLED.meta.sources;
+  const ci = out.classIndex;
+  if (!ci || !ci.categories || (ci.lastUpdate || "") < (BUNDLED.classIndex.lastUpdate || ""))
+    out.classIndex = BUNDLED.classIndex;
+  // merge any bundled HP adjustments the stored copy predates
+  const key = (a) => [a.make, a.yearFrom, a.yearTo, a.cui, a.advHp, a.factoredFrom, a.factoredTo].join("|").toUpperCase();
+  const have = new Set((out.hpAdjustments || []).map(key));
+  const missing = (BUNDLED.hpAdjustments || []).filter((a) => !have.has(key(a)));
+  if (missing.length) out.hpAdjustments = [...(out.hpAdjustments || []), ...missing];
+  return out;
 }
 
 // Import an updated dataset (parsed JSON object). Validates minimal shape,
@@ -368,7 +402,7 @@ export function importRefData(obj, sourceLabel = "imported file") {
   obj.meta.lastUpdated = obj.meta.lastUpdated || new Date().toISOString().slice(0, 10);
   obj.meta.updatedBy = sourceLabel;
   localStorage.setItem(LS_KEY, JSON.stringify(obj));
-  active = obj;
+  active = upgradeStored(obj);
   return active;
 }
 

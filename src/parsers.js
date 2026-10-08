@@ -21,6 +21,34 @@ const str = (v) => {
 
 const upper = (v) => str(v).toUpperCase();
 
+// Card category as the rules engine expects it (STK / SS / COMP / ...).
+// Exports normally carry the short codes; spelled-out names are mapped so
+// those cards aren't silently skipped by the class checks.
+const CATEGORY_ALIASES = {
+  STOCK: "STK",
+  "STOCK ELIMINATOR": "STK",
+  "SUPER STOCK": "SS",
+  SUPERSTOCK: "SS",
+  COMPETITION: "COMP",
+  "COMP ELIMINATOR": "COMP",
+  "COMPETITION ELIMINATOR": "COMP",
+};
+const category = (v) => {
+  const c = upper(v).replace(/\s+/g, " ");
+  return CATEGORY_ALIASES[c] || c;
+};
+
+// Header cells sometimes carry stray spaces ("Class "), which made every
+// value in that column read as blank. Trim the keys of each row object.
+function trimKeys(row) {
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    const key = String(k).trim();
+    if (!(key in out) || out[key] == null) out[key] = v;
+  }
+  return out;
+}
+
 function parseDate(v) {
   if (v === null || v === undefined || v === "") return null;
   if (v instanceof Date) return isNaN(v) ? null : v;
@@ -59,7 +87,7 @@ function fromTcnd(row) {
     carNumber: str(row["CarBike_Num"]),
     firstName: str(row["First_Name"]),
     lastName: str(row["Last_Name"]),
-    category: upper(row["Category"]),
+    category: category(row["Category"]),
     klass: upper(row["Class"]),
     engineMake: upper(row["EngMake"]),
     engineYear: num(row["Eng_Year"]),
@@ -95,7 +123,7 @@ function fromCompulink(row) {
     carNumber: str(row["Car Number"]),
     firstName: str(row["First Name"]),
     lastName: str(row["Last Name"]),
-    category: upper(row["Category"]),
+    category: category(row["Category"]),
     klass: upper(row["Class"]),
     engineMake: upper(row["Engine Make"]),
     engineYear: num(row["Engine Year"]),
@@ -126,7 +154,7 @@ export function parseWorkbook(buffer, fileName = "") {
   const warnings = [];
   for (const sheetName of wb.SheetNames) {
     const sheet = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null }).map(trimKeys);
     if (!rows.length) continue;
     const headers = Object.keys(rows[0]);
     const format = detectFormat(headers);

@@ -91,8 +91,8 @@ function setupUpdatePanel() {
           : `<span class="st ${status}">${status}</span>`;
       li.innerHTML =
         badge +
-        `<span>${label}` +
-        (detail ? ` <span class="muted">— ${detail}</span>` : "") +
+        `<span>${esc(label)}` +
+        (detail ? ` <span class="muted">— ${esc(detail)}</span>` : "") +
         `</span>`;
     };
     try {
@@ -104,6 +104,8 @@ function setupUpdatePanel() {
         parts.push(
           `${result.newAdjustments.length} factored-HP change(s) pulled in and applied`
         );
+      if (result.classIndex?.changed)
+        parts.push("NHRA class index tables updated");
       if (result.changedPages.length)
         parts.push(
           `${result.changedPages.length} page(s) changed since last check — open them below to review`
@@ -112,13 +114,13 @@ function setupUpdatePanel() {
       notice.textContent = parts.length
         ? "Check finished: " + parts.join("; ") + "."
         : "Check finished: no changes detected on the watched pages.";
-      if (result.newAdjustments.length && currentMeta) rerun();
+      if ((result.newAdjustments.length || result.classIndex?.changed) && currentMeta) rerun();
     } catch (e) {
       notice.className = "notice err";
       notice.textContent =
         "Live check failed (the relay services may be blocked or down): " + e.message;
     }
-    btn.textContent = "Check nhraracer.com now";
+    btn.textContent = "Check NHRA sites now";
     btn.disabled = false;
   });
 
@@ -287,7 +289,7 @@ function renderTable() {
       <td class="mono">${esc(rec.carNumber) || "—"}</td>
       <td>${esc(rec.firstName)} ${esc(rec.lastName)}</td>
       <td class="mono">${esc(rec.category)}</td>
-      <td class="mono">${esc(rec.klass) || "—"}</td>
+      <td class="mono"${classIndexTitle(rec)}>${esc(rec.klass) || "—"}</td>
       <td>${esc(rec.engineMake)} ${rec.engineYear ?? ""} ${rec.cui ? rec.cui + "ci" : ""}</td>
       <td>${esc(rec.bodyType)} ${rec.bodyYear ?? ""}</td>
       <td>${rec.hp ?? "—"} / ${rec.factoredHp ?? "—"}${rec.gtHp != null ? ` <span class="muted">(GT ${rec.gtHp})</span>` : ""}</td>
@@ -317,7 +319,7 @@ function exportCsv() {
   const rows = [
     [
       "CarNumber", "Driver", "Category", "Class", "Engine", "Body",
-      "HP", "FactoredHP", "GT_HP", "Severity", "Flags",
+      "HP", "FactoredHP", "GT_HP", "Index_1/4", "Index_1/8", "Severity", "Flags",
     ],
   ];
   for (const r of filteredResults()) {
@@ -333,6 +335,8 @@ function exportCsv() {
       rec.hp ?? "",
       rec.factoredHp ?? "",
       rec.gtHp ?? "",
+      rec._parsedClass?.index?.q?.toFixed(2) ?? "",
+      rec._parsedClass?.index?.e?.toFixed(2) ?? "",
       r.maxSeverity,
       r.flags.map((f) => `[${f.severity}] ${f.message}`).join(" | "),
     ]);
@@ -388,6 +392,13 @@ function printProblemList() {
       .join("") +
     `<div class="footer">TechCardX screening aid — final classification per the current NHRA Rulebook &amp; Classification Guide. Check each box as it is cleared and write the answer on the line.</div>`;
   window.print();
+}
+
+// Tooltip with the NHRA 1/4- and 1/8-mile index for a recognized class.
+function classIndexTitle(rec) {
+  const ix = rec._parsedClass?.index;
+  if (!ix) return "";
+  return ` title="${esc(`NHRA ${ix.category} index: ${ix.q.toFixed(2)} (1/4) · ${ix.e.toFixed(2)} (1/8)`)}"`;
 }
 
 function esc(s) {

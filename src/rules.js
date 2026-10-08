@@ -8,6 +8,7 @@
 // "info"     — worth knowing during tech, not necessarily wrong
 
 import { getRefData } from "./refdata.js";
+import { BUNDLED_CLASS_INDEX, classLookup, normalizeClass } from "./classindex.js";
 
 // ---------------------------------------------------------------- helpers
 
@@ -95,25 +96,43 @@ function fmtRange(r) {
 
 // ------------------------------------------------------- class validation
 
-// Parse a class string into { group, letter, suffix } or null.
-// Groups: STK ("A/SA"), FS, CF, SS ("SS/JA"), GT, FSS, FGT, COMP ("E/SMA").
-export function parseClass(klass, category, ref) {
-  const c = (klass || "").toUpperCase().replace(/\s+/g, "");
-  if (!c) return null;
+// Parse a class string into { group, letter, ... } or null.
+// Groups: STK ("A/SA"), FS, FWD, SS ("SS/JA"), GT, FSS, FGT, COMP ("E/SMA"),
+// plus STK_OTHER / SS_OTHER for NHRA-listed classes that have no weight-break
+// table here (e.g. A/CM, B/PS, SS/AX, SS/TA, SS/PE).
+//
+// The NHRA class index (classindex.js, refreshed by the Update panel) is the
+// authority on which classes exist: anything on it is accepted, and the
+// patterns below only work out the group/letter used for weight breaks.
+// A class that matches a pattern but is NOT on the index is still accepted
+// (the index can lag the Rulebook) but carries notOnIndex so a warning can
+// be raised.
+function parsePattern(c, ref) {
   let m;
   if ((m = c.match(/^(AAA|AA|[A-Z])\/S(A?)$/))) {
     return { group: "STK", letter: m[1], auto: m[2] === "A" };
   }
-  if ((m = c.match(/^FS\/(AA|[A-M])$/))) return { group: "FS", letter: m[1] };
-  // Front-wheel-drive Stock: AF/S–EF/S (+ automatic)
-  if ((m = c.match(/^([A-E])F\/S(A?)$/)))
+  if ((m = c.match(/^FS\/(AAA|AA|XX|X|[A-M])$/))) return { group: "FS", letter: m[1] };
+  // Front-wheel-drive Stock: AAF/S, AF/S–EF/S (+ automatic)
+  if ((m = c.match(/^(AA|[A-E])F\/S(A?)$/)))
     return { group: "FWD", letter: m[1], auto: m[2] === "A" };
-  if ((m = c.match(/^SS\/([A-O])([AMSH]?)$/)))
+  // Stock CM / FCM / PS classes — listed by NHRA, no weight breaks bundled
+  if ((m = c.match(/^([A-Z])\/(CM|FCM|PS)$/)))
+    return { group: "STK_OTHER", letter: m[1], type: m[2] };
+  // Super Stock P-series (SS/PA-1…SS/PD-1, SS/PE…SS/PJ, SS/PAA…SS/PJA)
+  if ((m = c.match(/^SS\/P([A-D]-1|[E-J]|[A-J]A)$/)))
+    return { group: "SS_OTHER", letter: "P" + m[1], type: "P" };
+  // Super Stock turbo (SS/TA–TD) and X classes (SS/AX…SS/EX, SS/VX)
+  if ((m = c.match(/^SS\/(T[A-D])$/))) return { group: "SS_OTHER", letter: m[1], type: "T" };
+  if ((m = c.match(/^SS\/([A-Z])X$/))) return { group: "SS_OTHER", letter: m[1], type: "X" };
+  if ((m = c.match(/^SS\/([A-Q])([AMSH]?)$/)))
     return { group: "SS", letter: m[1], suffix: m[2] || "" };
+  // GT turbo GT/TA–TD (GT/TA used to parse as "GT/T automatic")
+  if ((m = c.match(/^GT\/T([A-D])$/))) return { group: "GT", letter: "T" + m[1], auto: false };
   if ((m = c.match(/^GT\/([A-Z])(A?)$/)))
     return { group: "GT", letter: m[1], auto: m[2] === "A" };
   if ((m = c.match(/^FSS\/([A-M])$/))) return { group: "FSS", letter: m[1] };
-  if ((m = c.match(/^(?:FGT|GT\/FS)\/?([A-M])$/))) return { group: "FGT", letter: m[1] };
+  if ((m = c.match(/^(?:FGT|GT\/FS)\/?(AA|BB|[A-N])$/))) return { group: "FGT", letter: m[1] };
   // Comp: letter(s) / type-code, e.g. F/D, K/AA, E/SMA, I/SM, D/A, AA/AT
   if ((m = c.match(/^([A-L]{1,2})\/([A-Z]{1,4})$/))) {
     const suffixes = ref.compSuffixes || {};
@@ -122,9 +141,28 @@ export function parseClass(klass, category, ref) {
   return null;
 }
 
+const CARD_CAT_FALLBACK_GROUP = { STK: "STK_OTHER", SS: "SS_OTHER", COMP: "COMP" };
+
+export function parseClass(klass, category, ref = getRefData()) {
+  const c = normalizeClass(klass);
+  if (!c) return null;
+  const entry = classLookup(ref.classIndex || BUNDLED_CLASS_INDEX).get(c);
+  const pat = parsePattern(c, ref);
+  if (entry && entry.cardCategory) {
+    let parsed = pat && GROUP_TO_CATEGORY[pat.group] === entry.cardCategory ? pat : null;
+    if (!parsed) {
+      const [pre, type] = c.split("/");
+      parsed = { group: CARD_CAT_FALLBACK_GROUP[entry.cardCategory], letter: type ? pre : null, type: type || c };
+    }
+    return { ...parsed, normalized: c, index: { category: entry.category, q: entry.q, e: entry.e } };
+  }
+  if (pat) return { ...pat, normalized: c, index: null, notOnIndex: true };
+  return null;
+}
+
 const GROUP_TO_CATEGORY = {
-  STK: "STK", FS: "STK", FWD: "STK",
-  SS: "SS", GT: "SS", FSS: "SS", FGT: "SS",
+  STK: "STK", FS: "STK", FWD: "STK", STK_OTHER: "STK",
+  SS: "SS", GT: "SS", FSS: "SS", FGT: "SS", SS_OTHER: "SS",
   COMP: "COMP",
 };
 
@@ -153,7 +191,7 @@ function ruleClassValid(rec, ref, flags) {
   // FSS cars and SS/AH also run in Comp Eliminator since their class
   // addition — both SS and COMP are legitimate categories for them.
   const compAllowed =
-    parsed.group === "FSS" || (parsed.group === "SS" && rec.klass === "SS/AH");
+    parsed.group === "FSS" || (parsed.group === "SS" && parsed.normalized === "SS/AH");
   if (
     expectedCat &&
     expectedCat !== rec.category &&
@@ -163,6 +201,14 @@ function ruleClassValid(rec, ref, flags) {
       code: "class-category-mismatch",
       severity: "problem",
       message: `Class "${rec.klass}" belongs to ${expectedCat}, but the card says category ${rec.category}.`,
+    });
+  }
+  if (parsed.notOnIndex) {
+    const idx = ref.classIndex || BUNDLED_CLASS_INDEX;
+    flags.push({
+      code: "class-not-on-index",
+      severity: "warning",
+      message: `Class "${rec.klass}" fits the ${expectedCat || rec.category} class pattern but isn't on the NHRA class index (updated ${idx.lastUpdate || "?"}) — verify the class.`,
     });
   }
   rec._parsedClass = parsed;
