@@ -9,6 +9,7 @@
 // changes also stamp meta.lastUpdated.
 
 import { getRefData, importRefData } from "./refdata.js";
+import { NHRA_INDEX_PAGES, parseIndexPage } from "./classindex.js";
 
 // corsproxy.io now returns 403 for anonymous free use, so it sits last as
 // a long-shot; jina.ai's public reader returns the page as plain text
@@ -38,7 +39,7 @@ function htmlToText(html) {
 // All relays are tried concurrently and the first good response wins —
 // some watched pages (the AHFS list) take 15s+ to serve, so sequential
 // attempts stacked timeouts until the whole page failed.
-async function fetchViaProxies(url, timeoutMs = 30000) {
+export async function fetchViaProxies(url, timeoutMs = 30000) {
   const attempts = PROXIES.map(async (wrap) => {
     const proxied = wrap(url);
     const relay = new URL(proxied).host;
@@ -146,12 +147,16 @@ export async function checkWebsite(onPage = () => {}) {
     }
   }
 
+  // re-download the NHRA class index tables (Comp, Super Stock, Stock, Super)
+  const classIndex = await refreshClassIndex(ref, onPage);
+
   // merge any newly discovered adjustments into the active dataset
   const existing = new Set((ref.hpAdjustments || []).map(adjKey));
   const fresh = foundAdjustments.filter((a) => !existing.has(adjKey(a)));
-  if (fresh.length) {
+  if (fresh.length || classIndex.changed) {
     const updated = JSON.parse(JSON.stringify(ref));
-    updated.hpAdjustments = [...(ref.hpAdjustments || []), ...fresh];
+    if (fresh.length) updated.hpAdjustments = [...(ref.hpAdjustments || []), ...fresh];
+    if (classIndex.changed) updated.classIndex = classIndex.index;
     updated.meta.lastUpdated = new Date().toISOString().slice(0, 10);
     importRefData(updated, "website check");
   }
@@ -162,5 +167,52 @@ export async function checkWebsite(onPage = () => {}) {
     localStorage.setItem(CHECK_KEY, checkedAt);
   } catch {}
 
-  return { checkedAt, changedPages, newAdjustments: fresh };
+  return { checkedAt, changedPages, newAdjustments: fresh, classIndex };
+}
+
+// Fetch every NHRA class-index category page and rebuild ref.classIndex.
+// A category is only replaced when its page parses cleanly: the expected
+// heading is present (a wrong `class=` value silently falls back to the
+// Comp table or a 500 page) and it yields at least 80% as many classes as
+// the current table — so a half-loaded or reformatted page can't wipe out
+// classes. Returns { changed, index, summary }.
+export async function refreshClassIndex(ref, onPage = () => {}, fetcher = fetchViaProxies) {
+  const current = ref.classIndex || { categories: {} };
+  const next = { ...current, categories: { ...(current.categories || {}) } };
+  let changed = false;
+  let newest = current.lastUpdate || "";
+  const summary = [];
+  for (const page of NHRA_INDEX_PAGES) {
+    const label = `Class index — ${page.category}`;
+    onPage(label, "checking");
+    try {
+      const parsed = parseIndexPage(await fetcher(page.url));
+      const isSuper = page.category === "Super";
+      const headingOk = isSuper
+        ? parsed.rows.length > 0 && parsed.rows.every((r) => /^super/i.test(r[0]))
+        : parsed.heading && parsed.heading.toLowerCase() === page.heading.toLowerCase();
+      if (!headingOk)
+        throw new Error(`page did not contain the "${page.heading}" table (got ${parsed.heading || "no table heading"})`);
+      const before = current.categories?.[page.category] || [];
+      if (parsed.rows.length < Math.floor(before.length * 0.8))
+        throw new Error(`only ${parsed.rows.length} classes parsed (had ${before.length}) — kept the existing table`);
+      const sig = (rows) => JSON.stringify(rows);
+      const status = sig(before) === sig(parsed.rows) ? "unchanged" : "changed";
+      if (status === "changed") {
+        next.categories[page.category] = parsed.rows;
+        changed = true;
+      }
+      if (parsed.lastUpdate && parsed.lastUpdate > newest) newest = parsed.lastUpdate;
+      summary.push({ category: page.category, classes: parsed.rows.length, status });
+      onPage(label, status, `${parsed.rows.length} classes`);
+    } catch (e) {
+      summary.push({ category: page.category, error: e.message });
+      onPage(label, "error", e.message);
+    }
+  }
+  if (changed) {
+    next.lastUpdate = newest;
+    next.fetchedAt = new Date().toISOString();
+  }
+  return { changed, index: next, summary };
 }

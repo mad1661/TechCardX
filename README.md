@@ -42,11 +42,26 @@ Specifications changelog (factored-HP corrections are checked against
 every uploaded card) and Chrysler 1964/65/68 engine blueprint specs
 (displacement + advertised-HP combo validation for Mopar cards).
 
+## Class recognition (NHRA class index)
+
+Which class designations are valid comes from NHRA's class index tables,
+bundled in `src/classindex.js` (snapshot of NHRA "Last Update: 10/6/2026")
+with their 1/4- and 1/8-mile indexes. `nhra.com/stats/class_indexes` is only
+a wrapper around an nhra.net iframe; the tables themselves live at
+`https://www.nhra.net/stats/indexes.html?class=Comp`, `?class=Super%20Stock`
+and `?class=Stock` (the `class=` value is exact and case-sensitive). The
+Update panel's live check re-downloads all three and only replaces a table
+when the page parses cleanly. Card classes are normalized (case, spaces,
+typographic slashes/dashes) before lookup; a class that fits the pattern of
+a Stock/SS/Comp class but isn't on the index gets a warning instead of a
+hard reject.
+
 ## Development
 
 ```bash
 npm install
 npm run dev        # local dev server
+npm test           # rules + class-index tests (node --test)
 npm run build      # production build into dist/
 firebase deploy    # deploy to Firebase Hosting (techcardx project)
 ```
